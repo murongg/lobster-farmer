@@ -5,7 +5,7 @@
 1. 在项目目录启动游戏服务：
 
 ```bash
-npm i -g lobster-farmer
+npm i -g lobster-farmer-cli
 lobster-farmer start --port 18990
 ```
 

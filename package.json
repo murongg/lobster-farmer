@@ -1,6 +1,6 @@
 {
   "name": "lobster-farmer-cli",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": false,
   "description": "Lobster Farmer CLI for OpenClaw auto-feeding and lobster growth simulation",
   "license": "MIT",
@@ -21,14 +21,17 @@
   "publishConfig": {
     "access": "public"
   },
+  "packageManager": "pnpm@10.14.0",
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "dev": "tsx watch server/index.ts",
     "start": "node ./bin/lobster-farmer.cjs start",
-    "start:fg": "npm run build && node dist/index.js",
+    "start:fg": "pnpm run build && node dist/index.js",
     "stop": "node ./bin/lobster-farmer.cjs stop",
     "status": "node ./bin/lobster-farmer.cjs status",
-    "prepack": "npm run build"
+    "prepack": "pnpm run build",
+    "prepublishOnly": "pnpm run build",
+    "release": "bumpp --commit --tag --push"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.2",
@@ -38,6 +41,7 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/express": "^5.0.0",
     "@types/node": "^24.3.0",
+    "bumpp": "^10.4.1",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
