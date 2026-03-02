@@ -15,18 +15,7 @@ lobster-farmer start
 npx clawhub@latest install lobster-farmer-feeder
 ```
 
-3. Restart OpenClaw (or open a new session) so the skill is loaded.
-
-4. Chat with AI as usual. One feeding action will run automatically per turn.
-
-5. You can also provide explicit feed parameters in your message:
-
-```text
-Please feed the lobster: model=gpt-4.1, input_tokens=1200, output_tokens=300
-```
-
-## User Prompt (Copy & Paste)
-
+3. Startup prompt
 ```text
 From now on, enable "Auto Lobster Farming Mode" and keep it enabled until I explicitly say "Disable auto lobster farming mode".
 
@@ -39,6 +28,14 @@ Rules:
 5. If feeding fails, retry once automatically (including port correction if needed). If it still fails, report a short error.
 6. After each feed, append one line: 🦞 Fed | model=... | in=... | out=... | total=... | size=....
 7. If I specify a port, always use that --port for later feed actions.
+```
+
+4. Chat with AI as usual. One feeding action will run automatically per turn.
+
+5. You can also provide explicit feed parameters in your message:
+
+```text
+Please feed the lobster: model=gpt-4.1, input_tokens=1200, output_tokens=300
 ```
 
 ## Notes

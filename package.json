@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "lobster-farmer": "./bin/lobster-farmer.cjs"
+    "lobster-farmer": "bin/lobster-farmer.cjs"
   },
   "files": [
     "bin",
