@@ -1,6 +1,6 @@
 {
   "name": "lobster-farmer-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "Lobster Farmer CLI for OpenClaw auto-feeding and lobster growth simulation",
   "license": "MIT",
