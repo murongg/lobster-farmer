@@ -2,10 +2,10 @@
 
 ## Use in OpenClaw
 
-1. Install and start the game service in this project:
+1. On the machine where OpenClaw is installed, run:
 
 ```bash
-npm i -g lobster-farmer-cli
+npm i -g lobster-farmer-cli@latest
 lobster-farmer start
 ```
 

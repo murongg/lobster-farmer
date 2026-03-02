@@ -2,10 +2,10 @@
 
 ## 在 OpenClaw 中使用
 
-1. 在项目目录启动游戏服务：
+1. 在安装 OpenClaw 的计算机上执行：
 
 ```bash
-npm i -g lobster-farmer-cli
+npm i -g lobster-farmer-cli@latest
 lobster-farmer start --port 18990
 ```
 
