@@ -55,7 +55,7 @@ interface LobsterRow {
   updatedAt: string;
 }
 
-const SIZE_MIN = 1.7;
+const SIZE_MIN = 1;
 const SIZE_MAX = 4.8;
 const GROWTH_K = 0.0002;
 const MAX_TOKENS_PER_FEED = 50_000;

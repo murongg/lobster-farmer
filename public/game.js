@@ -1,10 +1,27 @@
-const { AnimatedSprite, Application, Assets, Container, Graphics, Rectangle, Texture, TilingSprite } = PIXI;
+const { AnimatedSprite, Application, Assets, Container, Graphics, Rectangle, Text, Texture, TilingSprite } = PIXI;
 
 const BG_IMAGE = "/game-assets/background/underwater-tileable.png";
 const WALK_STRIP = "/game-assets/lobster/spr_lobster_walk_strip6.png";
 const BUBBLE_STRIP = "/game-assets/lobster/spr_lobster_searching_bubble_strip10.png";
 
 const BASE_RED = 0xff3b30;
+const NAME_LABEL_STYLE = {
+  fontFamily: "monospace",
+  fontSize: 10,
+  fontWeight: "700",
+  fill: 0xf2f8ff,
+  stroke: 0x073b5e,
+  strokeThickness: 3
+};
+const POPUP_TEXT_STYLE = {
+  fontFamily: "monospace",
+  fontSize: 11,
+  fontWeight: "700",
+  fill: 0xe9f8ff,
+  lineHeight: 14,
+  stroke: 0x041d2f,
+  strokeThickness: 3
+};
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -14,12 +31,130 @@ function snap(value, grid = 2) {
   return Math.round(value / grid) * grid;
 }
 
+function randomInRange(min, max) {
+  if (max <= min) {
+    return min;
+  }
+  return min + Math.random() * (max - min);
+}
+
+function normalizeAngle(angle) {
+  let next = angle;
+  const full = Math.PI * 2;
+  while (next > Math.PI) {
+    next -= full;
+  }
+  while (next < -Math.PI) {
+    next += full;
+  }
+  return next;
+}
+
 function splitStrip(texture, frames, frameWidth, frameHeight) {
   const result = [];
   for (let index = 0; index < frames; index += 1) {
     result.push(new Texture(texture.baseTexture, new Rectangle(index * frameWidth, 0, frameWidth, frameHeight)));
   }
   return result;
+}
+
+function formatModelLabel(model, limit = 18) {
+  const clean = String(model || "").trim();
+  if (clean.length <= limit) {
+    return clean;
+  }
+  return `${clean.slice(0, Math.max(1, limit - 1))}…`;
+}
+
+function formatNumber(value) {
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(number)) {
+    return "0";
+  }
+  return Math.floor(number).toLocaleString("en-US");
+}
+
+function buildPopupText(model, lobster) {
+  return [
+    `Model: ${formatModelLabel(model, 24)}`,
+    `Total: ${formatNumber(lobster?.tokens)}`,
+    `Input: ${formatNumber(lobster?.inputTokens)}`,
+    `Output: ${formatNumber(lobster?.outputTokens)}`
+  ].join("\n");
+}
+
+function createInfoPopup(scene) {
+  const container = new Container();
+  container.visible = false;
+  container.zIndex = 1_000_000;
+
+  const panel = new Graphics();
+  const text = new Text("", POPUP_TEXT_STYLE);
+  text.position.set(10, 8);
+  text.roundPixels = true;
+
+  container.addChild(panel);
+  container.addChild(text);
+  scene.popupLayer.addChild(container);
+
+  return {
+    container,
+    panel,
+    text,
+    model: null
+  };
+}
+
+function hideInfoPopup(scene) {
+  scene.infoPopup.model = null;
+  scene.infoPopup.container.visible = false;
+}
+
+function updateInfoPopup(scene) {
+  const infoPopup = scene.infoPopup;
+  const model = infoPopup.model;
+  if (!model) {
+    infoPopup.container.visible = false;
+    return;
+  }
+
+  const state = scene.stateRef();
+  const lobster = state?.lobsters?.[model];
+  const entity = scene.modelLobsters[model];
+
+  if (!lobster || !entity) {
+    hideInfoPopup(scene);
+    return;
+  }
+
+  infoPopup.text.text = buildPopupText(model, lobster);
+  const panelWidth = snap(infoPopup.text.width + 20);
+  const panelHeight = snap(infoPopup.text.height + 16);
+
+  infoPopup.panel.clear();
+  infoPopup.panel.lineStyle(2, 0x8de7ff, 0.95);
+  infoPopup.panel.beginFill(0x052438, 0.9);
+  infoPopup.panel.drawRect(0, 0, panelWidth, panelHeight);
+  infoPopup.panel.endFill();
+
+  const targetX = entity.container.x - panelWidth * 0.5;
+  const targetY = entity.container.y - panelHeight - snap(20 + entity.scale * 8);
+
+  const x = clamp(snap(targetX), 8, scene.width - panelWidth - 8);
+  const y = clamp(snap(targetY), 8, scene.height - panelHeight - 8);
+
+  infoPopup.container.position.set(x, y);
+  infoPopup.container.visible = true;
+}
+
+function showInfoPopup(scene, model) {
+  if (scene.infoPopup.model === model && scene.infoPopup.container.visible) {
+    hideInfoPopup(scene);
+    return;
+  }
+
+  scene.infoPopup.model = model;
+  updateInfoPopup(scene);
 }
 
 async function loadAssets() {
@@ -73,6 +208,14 @@ function drawBackground(scene) {
 }
 
 function createModelLobster(scene, model) {
+  const minSwimX = scene.swimBounds.left + 12;
+  const maxSwimX = scene.swimBounds.right - 12;
+  const minSwimY = scene.swimBounds.top + 20;
+  const maxSwimY = scene.swimBounds.bottom - 20;
+  const spawnX = snap(randomInRange(minSwimX, maxSwimX));
+  const spawnY = snap(randomInRange(minSwimY, maxSwimY));
+  const heading = randomInRange(-Math.PI, Math.PI);
+
   const container = new Container();
 
   const sprite = new AnimatedSprite(scene.assets.walkFrames);
@@ -91,8 +234,23 @@ function createModelLobster(scene, model) {
   bubble.roundPixels = true;
   bubble.play();
 
+  const nameLabel = new Text(formatModelLabel(model), NAME_LABEL_STYLE);
+  nameLabel.anchor.set(0.5, 0);
+  nameLabel.position.set(0, 26);
+  nameLabel.roundPixels = true;
+
   container.addChild(sprite);
   container.addChild(bubble);
+  container.addChild(nameLabel);
+
+  container.eventMode = "static";
+  container.cursor = "pointer";
+  container.on("pointertap", (event) => {
+    if (event && typeof event.stopPropagation === "function") {
+      event.stopPropagation();
+    }
+    showInfoPopup(scene, model);
+  });
 
   scene.modelLayer.addChild(container);
 
@@ -101,13 +259,17 @@ function createModelLobster(scene, model) {
     container,
     sprite,
     bubble,
-    baseX: scene.width * 0.5,
-    baseY: scene.height * 0.5,
-    driftX: 18 + Math.random() * 22,
-    driftY: 8 + Math.random() * 16,
+    nameLabel,
+    x: spawnX,
+    y: spawnY,
+    heading,
+    targetHeading: heading,
+    wanderCooldown: randomInRange(45, 140),
+    turnRate: randomInRange(0.03, 0.05),
+    swimSpeed: 0.42 + Math.random() * 0.32,
     phase: Math.random() * Math.PI * 2,
-    scale: 1.8,
-    direction: Math.random() > 0.5 ? 1 : -1
+    scale: 1.2,
+    direction: Math.cos(heading) >= 0 ? 1 : -1
   };
 }
 
@@ -132,34 +294,49 @@ function syncModelLobsters(scene, lobsterState) {
     }
   }
 
-  const entries = Object.entries(nextMap).sort((a, b) => b[1].tokens - a[1].tokens);
-  const count = entries.length;
-  const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
-  const rows = Math.max(1, Math.ceil(count / cols));
-
-  const swimWidth = Math.max(220, scene.swimBounds.right - scene.swimBounds.left);
-  const swimHeight = Math.max(180, scene.swimBounds.bottom - scene.swimBounds.top);
-  const cellW = swimWidth / cols;
-  const cellH = swimHeight / rows;
-
-  entries.forEach(([model, lobster], index) => {
+  Object.entries(nextMap).forEach(([model, lobster]) => {
     const entity = scene.modelLobsters[model];
-    const col = index % cols;
-    const row = Math.floor(index / cols);
+    const minSwimX = scene.swimBounds.left + 16;
+    const maxSwimX = scene.swimBounds.right - 16;
+    const minSwimY = scene.swimBounds.top + 20;
+    const maxSwimY = scene.swimBounds.bottom - 20;
 
-    entity.baseX = snap(scene.swimBounds.left + col * cellW + cellW * 0.5 + (col % 2 === 0 ? -10 : 10));
-    entity.baseY = snap(scene.swimBounds.top + row * cellH + cellH * 0.5 + (row % 2 === 0 ? -6 : 8));
+    if (!Number.isFinite(entity.x)) {
+      entity.x = snap(randomInRange(minSwimX, maxSwimX));
+    }
+    if (!Number.isFinite(entity.y)) {
+      entity.y = snap(randomInRange(minSwimY, maxSwimY));
+    }
+    entity.x = snap(clamp(entity.x, minSwimX, maxSwimX));
+    entity.y = snap(clamp(entity.y, minSwimY, maxSwimY));
 
-    const targetScale = clamp(typeof lobster.size === "number" ? lobster.size : 1.7, 1.7, 4.8);
+    if (!Number.isFinite(entity.heading)) {
+      entity.heading = randomInRange(-Math.PI, Math.PI);
+    }
+    if (!Number.isFinite(entity.targetHeading)) {
+      entity.targetHeading = entity.heading;
+    }
+    if (!Number.isFinite(entity.wanderCooldown) || entity.wanderCooldown <= 0) {
+      entity.wanderCooldown = randomInRange(45, 140);
+    }
+    if (!Number.isFinite(entity.turnRate)) {
+      entity.turnRate = randomInRange(0.03, 0.05);
+    }
+
+    const targetScale = clamp(typeof lobster.size === "number" ? lobster.size : 1.2, 1.2, 4.8);
     entity.scale = targetScale;
+    entity.direction = Math.cos(entity.heading) >= 0 ? 1 : -1;
 
     entity.sprite.tint = BASE_RED;
     entity.sprite.scale.set(entity.direction > 0 ? targetScale : -targetScale, targetScale);
+    entity.nameLabel.position.y = snap(14 + targetScale * 12);
+    entity.container.position.set(entity.x, entity.y);
 
     entity.container.zIndex = lobster.tokens;
   });
 
   scene.modelLayer.sortableChildren = true;
+  updateInfoPopup(scene);
 }
 
 function spawnFood(scene, tokens, model) {
@@ -197,10 +374,12 @@ function layout(scene, width, height) {
   scene.height = height;
   drawBackground(scene);
 
-  scene.swimBounds.left = 26;
-  scene.swimBounds.right = width - 26;
-  scene.swimBounds.top = 34;
-  scene.swimBounds.bottom = height - 120;
+  scene.swimBounds.left = 20;
+  scene.swimBounds.right = width - 20;
+  scene.swimBounds.top = 20;
+  scene.swimBounds.bottom = height - 20;
+
+  scene.app.stage.hitArea = new Rectangle(0, 0, width, height);
 
   syncModelLobsters(scene, scene.stateRef());
 }
@@ -210,9 +389,100 @@ function updateScene(scene, deltaTime) {
   scene.elapsed += delta;
   scene.bgSprite.tilePosition.x -= 0.12 * delta;
 
-  for (const entity of Object.values(scene.modelLobsters)) {
-    entity.container.x = snap(entity.baseX + Math.sin(scene.elapsed * 0.035 + entity.phase) * entity.driftX);
-    entity.container.y = snap(entity.baseY + Math.sin(scene.elapsed * 0.05 + entity.phase * 1.3) * entity.driftY);
+  const entities = Object.values(scene.modelLobsters);
+
+  for (let index = 0; index < entities.length; index += 1) {
+    const entity = entities[index];
+    const xPad = 18 + entity.scale * 18;
+    const yPad = 18 + entity.scale * 12;
+    const minX = scene.swimBounds.left + xPad;
+    const maxX = scene.swimBounds.right - xPad;
+    const minY = scene.swimBounds.top + yPad;
+    const maxY = scene.swimBounds.bottom - yPad;
+
+    entity.wanderCooldown -= delta;
+    if (entity.wanderCooldown <= 0) {
+      entity.targetHeading = normalizeAngle(entity.heading + randomInRange(-0.95, 0.95));
+      entity.wanderCooldown = randomInRange(70, 170);
+    }
+
+    let steerX = Math.cos(entity.targetHeading);
+    let steerY = Math.sin(entity.targetHeading);
+
+    const edgeRange = clamp(86 + entity.scale * 16, 82, 160);
+    const leftPush = clamp((minX + edgeRange - entity.x) / edgeRange, 0, 1);
+    const rightPush = clamp((entity.x - (maxX - edgeRange)) / edgeRange, 0, 1);
+    const topPush = clamp((minY + edgeRange - entity.y) / edgeRange, 0, 1);
+    const bottomPush = clamp((entity.y - (maxY - edgeRange)) / edgeRange, 0, 1);
+
+    steerX += (leftPush * leftPush - rightPush * rightPush) * 2.2;
+    steerY += (topPush * topPush - bottomPush * bottomPush) * 2;
+
+    let separationX = 0;
+    let separationY = 0;
+    const separationRadius = 56 + entity.scale * 18;
+    const separationRadiusSq = separationRadius * separationRadius;
+    for (let otherIndex = 0; otherIndex < entities.length; otherIndex += 1) {
+      if (otherIndex === index) {
+        continue;
+      }
+      const other = entities[otherIndex];
+      const dx = entity.x - other.x;
+      const dy = entity.y - other.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < 1 || distSq >= separationRadiusSq) {
+        continue;
+      }
+      const distance = Math.sqrt(distSq);
+      const intensity = (separationRadius - distance) / separationRadius;
+      separationX += (dx / distance) * intensity;
+      separationY += (dy / distance) * intensity;
+    }
+
+    steerX += separationX * 2.8;
+    steerY += separationY * 2.2;
+
+    if (Math.abs(steerX) < 0.0001 && Math.abs(steerY) < 0.0001) {
+      steerX = Math.cos(entity.heading);
+      steerY = Math.sin(entity.heading);
+    }
+
+    const desiredHeading = Math.atan2(steerY, steerX);
+    const headingDelta = normalizeAngle(desiredHeading - entity.heading);
+    const maxTurn = entity.turnRate * delta;
+    entity.heading = normalizeAngle(entity.heading + clamp(headingDelta, -maxTurn, maxTurn));
+
+    const speedPulse = 1 + Math.sin(scene.elapsed * 0.018 + entity.phase) * 0.08;
+    const moveSpeed = entity.swimSpeed * speedPulse;
+    entity.x += Math.cos(entity.heading) * moveSpeed * delta * 1.8;
+    entity.y += Math.sin(entity.heading) * moveSpeed * delta * 1.4;
+
+    if (entity.x < minX) {
+      entity.x = minX;
+      entity.heading = normalizeAngle(Math.PI - entity.heading);
+    } else if (entity.x > maxX) {
+      entity.x = maxX;
+      entity.heading = normalizeAngle(Math.PI - entity.heading);
+    }
+
+    if (entity.y < minY) {
+      entity.y = minY;
+      entity.heading = normalizeAngle(-entity.heading);
+    } else if (entity.y > maxY) {
+      entity.y = maxY;
+      entity.heading = normalizeAngle(-entity.heading);
+    }
+
+    const facingX = Math.cos(entity.heading);
+    if (facingX > 0.06) {
+      entity.direction = 1;
+    } else if (facingX < -0.06) {
+      entity.direction = -1;
+    }
+
+    entity.container.x = snap(entity.x);
+    entity.container.y = snap(entity.y);
+    entity.sprite.scale.set(entity.direction > 0 ? entity.scale : -entity.scale, entity.scale);
     entity.bubble.alpha = 0.42 + Math.sin(scene.elapsed * 0.07 + entity.phase) * 0.2;
   }
 
@@ -247,6 +517,8 @@ function updateScene(scene, deltaTime) {
       scene.foods.splice(index, 1);
     }
   }
+
+  updateInfoPopup(scene);
 }
 
 async function apiRequest(path, options) {
@@ -288,6 +560,7 @@ function syncView() {
     return;
   }
   syncModelLobsters(sceneRef, gameState.lobster);
+  updateInfoPopup(sceneRef);
 }
 
 function applyServerState(nextState) {
@@ -368,11 +641,13 @@ async function initGame() {
   const bubbleLayer = new Container();
   const modelLayer = new Container();
   const foodLayer = new Container();
+  const popupLayer = new Container();
 
   rootLayer.addChild(bgLayer);
   rootLayer.addChild(bubbleLayer);
   rootLayer.addChild(modelLayer);
   rootLayer.addChild(foodLayer);
+  rootLayer.addChild(popupLayer);
 
   app.stage.addChild(rootLayer);
   host.appendChild(app.view);
@@ -384,20 +659,32 @@ async function initGame() {
     bubbleLayer,
     modelLayer,
     foodLayer,
+    popupLayer,
     bubbles: [],
     foods: [],
     modelLobsters: {},
+    infoPopup: null,
     elapsed: 0,
     width: host.clientWidth,
     height: host.clientHeight,
     swimBounds: {
-      left: 26,
-      right: host.clientWidth - 26,
-      top: 34,
-      bottom: host.clientHeight - 120
+      left: 20,
+      right: host.clientWidth - 20,
+      top: 20,
+      bottom: host.clientHeight - 20
     },
     stateRef: () => gameState.lobster
   };
+
+  scene.infoPopup = createInfoPopup(scene);
+
+  app.stage.eventMode = "static";
+  app.stage.on("pointertap", () => {
+    if (!sceneRef) {
+      return;
+    }
+    hideInfoPopup(sceneRef);
+  });
 
   for (let index = 0; index < 46; index += 1) {
     const bubble = createBubble(scene.width, scene.height);
