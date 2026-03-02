@@ -2,7 +2,7 @@
 
 const { spawn, spawnSync } = require("node:child_process");
 const { existsSync, rmSync, mkdirSync, writeFileSync, readFileSync, openSync } = require("node:fs");
-const { homedir } = require("node:os");
+const { homedir, networkInterfaces } = require("node:os");
 const { resolve } = require("node:path");
 
 const entry = resolve(__dirname, "../dist/index.js");
@@ -12,6 +12,7 @@ const dataDir = resolve(homedir(), ".lobster-farmer");
 const dbBase = resolve(dataDir, "data.sqlite");
 const pidFile = resolve(dataDir, "lobster-farmer.pid");
 const logFile = resolve(dataDir, "lobster-farmer.log");
+const portFile = resolve(dataDir, "lobster-farmer.port");
 const defaultPort = "18990";
 
 function printHelp() {
@@ -157,6 +158,7 @@ function resetData() {
   removeIfExists(`${dbBase}-wal`);
   removeIfExists(pidFile);
   removeIfExists(logFile);
+  removeIfExists(portFile);
   console.log("SQLite data reset complete.");
 }
 
@@ -206,20 +208,115 @@ function getRunningPid() {
   }
 
   removeIfExists(pidFile);
+  removeIfExists(portFile);
   return null;
+}
+
+function readActivePort() {
+  if (!existsSync(portFile)) {
+    return null;
+  }
+
+  const value = readFileSync(portFile, "utf8").trim();
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric <= 0 || numeric > 65535) {
+    return null;
+  }
+  return String(numeric);
+}
+
+function writeActivePort(port) {
+  writeFileSync(portFile, `${port}\n`);
+}
+
+function accessUrl(port) {
+  return `http://localhost:${port}`;
+}
+
+function isPrivateLanIpv4(address) {
+  const parts = address.split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+
+  const [a, b] = parts;
+  if (a === 10) {
+    return true;
+  }
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true;
+  }
+  if (a === 192 && b === 168) {
+    return true;
+  }
+  if (a === 100 && b >= 64 && b <= 127) {
+    return true;
+  }
+
+  return false;
+}
+
+function lanAccessUrls(port) {
+  const nets = networkInterfaces();
+  const urls = [];
+  const seen = new Set();
+
+  for (const interfaces of Object.values(nets)) {
+    if (!Array.isArray(interfaces)) {
+      continue;
+    }
+
+    for (const iface of interfaces) {
+      if (!iface || iface.internal) {
+        continue;
+      }
+
+      const family = typeof iface.family === "string" ? iface.family : iface.family === 4 ? "IPv4" : "";
+      if (family !== "IPv4") {
+        continue;
+      }
+
+      if (!iface.address || !isPrivateLanIpv4(iface.address)) {
+        continue;
+      }
+
+      const url = `http://${iface.address}:${port}`;
+      if (seen.has(url)) {
+        continue;
+      }
+      seen.add(url);
+      urls.push(url);
+    }
+  }
+
+  return urls;
+}
+
+function printAccessUrls(port) {
+  console.log(`url: ${accessUrl(port)}`);
+
+  const lanUrls = lanAccessUrls(port);
+  if (lanUrls.length > 0) {
+    console.log("lan:");
+    for (const url of lanUrls) {
+      console.log(`  - ${url}`);
+    }
+  }
 }
 
 function startServer(port, foreground) {
   ensureBuild();
 
   mkdirSync(dataDir, { recursive: true });
+  const resolvedPort = resolvePort(port);
 
   const env = { ...process.env };
-  if (port) {
-    env.PORT = port;
-  }
+  env.PORT = resolvedPort;
 
   if (foreground) {
+    writeActivePort(resolvedPort);
+    printAccessUrls(resolvedPort);
+
     const child = spawn(process.execPath, [entry], {
       stdio: "inherit",
       env
@@ -231,6 +328,7 @@ function startServer(port, foreground) {
     });
 
     child.on("exit", (code, signal) => {
+      removeIfExists(portFile);
       if (signal) {
         process.kill(process.pid, signal);
         return;
@@ -243,7 +341,9 @@ function startServer(port, foreground) {
 
   const existingPid = getRunningPid();
   if (existingPid) {
+    const runningPort = readActivePort() || resolvedPort;
     console.log(`Lobster Farmer already running (pid: ${existingPid})`);
+    printAccessUrls(runningPort);
     return;
   }
 
@@ -257,8 +357,10 @@ function startServer(port, foreground) {
   child.unref();
 
   writeFileSync(pidFile, String(child.pid));
+  writeActivePort(resolvedPort);
   console.log(`Lobster Farmer started in background.`);
   console.log(`pid: ${child.pid}`);
+  printAccessUrls(resolvedPort);
   console.log(`log: ${logFile}`);
 }
 
@@ -277,6 +379,7 @@ function stopServer() {
   }
 
   removeIfExists(pidFile);
+  removeIfExists(portFile);
   console.log(`Lobster Farmer stopped (pid: ${pid}).`);
 }
 
@@ -288,6 +391,8 @@ function showStatus() {
   }
 
   console.log(`Lobster Farmer status: running (pid: ${pid})`);
+  const runningPort = readActivePort() || defaultPort;
+  printAccessUrls(runningPort);
   console.log(`log: ${logFile}`);
 }
 
