@@ -29,10 +29,10 @@ Rules:
 
 1. After every formal reply you send, automatically run one feeding action.
 2. Before feeding, check service status with: lobster-farmer status; if not running, start with lobster-farmer start.
-3. Feeding command: lobster-farmer feed --model "<actual model name used in this turn>" --input-tokens <current input> --output-tokens <current output>.
+3. Feeding command: lobster-farmer feed --model "<actual model name used in this turn>" --input-tokens <current input> --output-tokens <current output> --emotion "<current emotion>".
 4. Use real token stats when available; if exact per-turn values are unavailable, use an approximate delta and mark it as "approx".
 5. If feeding fails, retry once automatically (including port correction if needed). If it still fails, report a short error.
-6. After each feed, append one line: 🦞 Fed | model=... | in=... | out=... | total=... | size=....
+6. After each feed, append one line: 🦞 Fed | model=... | in=... | out=... | total=... | size=... | emotion=....
 7. If I specify a port, always use that --port for later feed actions.
 ```
 
@@ -41,7 +41,7 @@ Rules:
 5. You can also provide explicit feed parameters in your message:
 
 ```text
-Please feed the lobster: model=gpt-4.1, input_tokens=1200, output_tokens=300
+Please feed the lobster: model=gpt-4.1, input_tokens=1200, output_tokens=300, emotion=focused
 ```
 
 ## Notes

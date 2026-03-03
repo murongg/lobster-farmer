@@ -29,10 +29,10 @@ npx clawhub@latest install lobster-farmer-feeder
 
 1. 你每次给我发送任何正式回复后，都自动执行一次喂龙虾。
 2. 喂龙虾前先检查服务：lobster-farmer status；若未运行则先 lobster-farmer start。
-3. 喂食命令：lobster-farmer feed --model "<本次实际模型名>" --input-tokens <本次input> --output-tokens <本次output>。
+3. 喂食命令：lobster-farmer feed --model "<本次实际模型名>" --input-tokens <本次input> --output-tokens <本次output> --emotion "<本次情绪>"。
 4. token 使用真实统计值；若拿不到单次精确值，则用“本次累计差值”作为近似，并标注“approx”。
 5. 失败时自动重试一次（含端口修正）；仍失败再简短报错。
-6. 每次喂完都附一行：🦞 已喂养 | model=... | in=... | out=... | total=... | size=...。
+6. 每次喂完都附一行：🦞 已喂养 | model=... | in=... | out=... | total=... | size=... | emotion=...。
 7. 若我指定端口，后续固定使用该 --port。
 ```
 
@@ -41,7 +41,7 @@ npx clawhub@latest install lobster-farmer-feeder
 5. 你也可以在提问里指定喂养参数：
 
 ```text
-帮我喂养龙虾：model=gpt-4.1, input_tokens=1200, output_tokens=300
+帮我喂养龙虾：model=gpt-4.1, input_tokens=1200, output_tokens=300, emotion=focused
 ```
 
 ## 体型规则
