@@ -57,10 +57,9 @@ interface LobsterRow {
   updatedAt: string;
 }
 
-const SIZE_MIN = 1;
-const SIZE_MAX = 4.8;
-const GROWTH_K = 0.0002;
-const MAX_TOKENS_PER_FEED = 50_000;
+const SIZE_MIN = 0.1;
+const SIZE_MAX = 20;
+const GROWTH_K = 0.00000000106;
 
 interface NormalizedFeedTokens {
   inputTokens: number;
@@ -139,16 +138,6 @@ function normalizeFeedTokens(
   let totalTokens = inputTokens + outputTokens;
   if (totalTokens <= 0) {
     throw new Error("input_tokens + output_tokens 必须大于 0");
-  }
-
-  if (totalTokens > MAX_TOKENS_PER_FEED) {
-    const ratio = MAX_TOKENS_PER_FEED / totalTokens;
-    const scaledInputTokens = Math.floor(inputTokens * ratio);
-    const scaledOutputTokens = MAX_TOKENS_PER_FEED - scaledInputTokens;
-
-    inputTokens = scaledInputTokens;
-    outputTokens = scaledOutputTokens;
-    totalTokens = MAX_TOKENS_PER_FEED;
   }
 
   return {

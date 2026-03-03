@@ -44,6 +44,21 @@ npx clawhub@latest install lobster-farmer-feeder
 帮我喂养龙虾：model=gpt-4.1, input_tokens=1200, output_tokens=300
 ```
 
+## 体型规则
+
+- 龙虾体型由每个模型的累计 `totalTokens` 计算：
+`size = SIZE_MIN + (SIZE_MAX - SIZE_MIN) * (1 - exp(-GROWTH_K * totalTokens))`
+- 当前参数：
+`SIZE_MIN = 0.1`, `SIZE_MAX = 20`, `GROWTH_K = 0.00000000106`
+- 单次喂养 token 入参范围：
+`input_tokens >= 0`、`output_tokens >= 0`，且 `input_tokens + output_tokens > 0`
+- 用于体型计算的累计 token 范围：
+`totalTokens` 从 `0` 开始，存储层没有硬上限。
+- 实际最小/最大体型对应区间：
+`totalTokens = 0` 时 `size = 0.1`（最小）；
+约 `23,704` token 开始出现可见增长（`size = 0.101`）；
+约 `9,992,096,407` token 时体型四舍五入到 `20`（最大），再往上也保持 `20`。
+
 ## 游戏静态资源来源
 
 - 当前游戏使用的龙虾动画帧

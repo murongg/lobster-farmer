@@ -9,6 +9,8 @@ const WALK_FRAMES = [
   "/game-assets/lobster/crayfish_pixel_4.png"
 ];
 const BASE_RED = 0xffffff;
+const LOBSTER_SCALE_MIN = 0.1;
+const LOBSTER_SCALE_MAX = 20;
 const NAME_LABEL_STYLE = {
   fontFamily: "monospace",
   fontSize: 10,
@@ -445,7 +447,7 @@ function createModelLobster(scene, model) {
     turnRate: randomInRange(0.03, 0.05),
     swimSpeed: 0.42 + Math.random() * 0.32,
     phase: Math.random() * Math.PI * 2,
-    scale: 1.2,
+    scale: LOBSTER_SCALE_MIN,
     direction: Math.cos(heading) >= 0 ? 1 : -1
   };
 }
@@ -500,7 +502,7 @@ function syncModelLobsters(scene, lobsterState) {
       entity.turnRate = randomInRange(0.03, 0.05);
     }
 
-    const targetScale = clamp(typeof lobster.size === "number" ? lobster.size : 1.2, 1.2, 4.8);
+    const targetScale = clamp(typeof lobster.size === "number" ? lobster.size : LOBSTER_SCALE_MIN, LOBSTER_SCALE_MIN, LOBSTER_SCALE_MAX);
     entity.scale = targetScale;
     entity.direction = Math.cos(entity.heading) >= 0 ? 1 : -1;
 

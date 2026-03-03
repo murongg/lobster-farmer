@@ -51,6 +51,23 @@ Please feed the lobster: model=gpt-4.1, input_tokens=1200, output_tokens=300
 - Default auto-feed values: `model=auto-agent`, `input_tokens=1`, `output_tokens=1`.
 - Default service port: `18990`.
 
+## Size Rule
+
+- The lobster size is calculated from cumulative `totalTokens` per model:
+`size = SIZE_MIN + (SIZE_MAX - SIZE_MIN) * (1 - exp(-GROWTH_K * totalTokens))`
+- Current parameters:
+`SIZE_MIN = 0.1`, `SIZE_MAX = 20`, `GROWTH_K = 0.00000000106`
+- Feed token input range (per request):
+`input_tokens >= 0`, `output_tokens >= 0`, and `input_tokens + output_tokens > 0`
+- Effective total token range for size:
+`totalTokens` starts at `0` and has no hard upper cap in storage.
+- Practical min/max checkpoints:
+`totalTokens = 0` -> `size = 0.1` (min);
+first visible increase at about `23,704` tokens (`size = 0.101`);
+size rounds to `20` (max) at about `9,992,096,407` tokens, and stays at `20` beyond that.
+- Practical behavior:
+growth is fast at the beginning and gradually saturates near the max size.
+
 ## Game Asset Credits
 
 - Lobster animation frames currently used in game
