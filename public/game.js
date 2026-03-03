@@ -1,6 +1,7 @@
 const { AnimatedSprite, Application, Assets, Container, Graphics, Rectangle, Text, Texture, TilingSprite } = PIXI;
 
-const BG_IMAGE = "/game-assets/background/underwater-tileable.png";
+const BG_IMAGE = "/game-assets/background/ocean_pixel_background.gif";
+const BG_FALLBACK_IMAGE = "/game-assets/background/underwater-tileable.png";
 const WALK_FRAMES = [
   "/game-assets/lobster/crayfish_pixel_1.png",
   "/game-assets/lobster/crayfish_pixel_2.png",
@@ -67,6 +68,53 @@ function splitStrip(texture, frames, frameWidth, frameHeight) {
     result.push(new Texture(texture.baseTexture, new Rectangle(index * frameWidth, 0, frameWidth, frameHeight)));
   }
   return result;
+}
+
+function toTexture(candidate) {
+  if (!candidate) {
+    return null;
+  }
+  if (candidate instanceof Texture) {
+    return candidate;
+  }
+  if (candidate.texture instanceof Texture) {
+    return candidate.texture;
+  }
+  if (Array.isArray(candidate) && candidate[0] instanceof Texture) {
+    return candidate[0];
+  }
+  if (Array.isArray(candidate?.textures) && candidate.textures[0] instanceof Texture) {
+    return candidate.textures[0];
+  }
+  try {
+    return Texture.from(candidate);
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function loadBackgroundTexture() {
+  try {
+    const loaded = await Assets.load(BG_IMAGE);
+    const texture = toTexture(loaded) || toTexture(typeof Assets.get === "function" ? Assets.get(BG_IMAGE) : null) || toTexture(BG_IMAGE);
+    if (texture) {
+      return texture;
+    }
+  } catch (_error) {
+    // Fallback to static texture below.
+  }
+
+  try {
+    const fallback = await Assets.load(BG_FALLBACK_IMAGE);
+    const texture = toTexture(fallback) || toTexture(typeof Assets.get === "function" ? Assets.get(BG_FALLBACK_IMAGE) : null) || toTexture(BG_FALLBACK_IMAGE);
+    if (texture) {
+      return texture;
+    }
+  } catch (_error) {
+    // Use PIXI built-in white texture as last resort.
+  }
+
+  return Texture.WHITE;
 }
 
 function removeGreenScreenAndCrop(texture) {
@@ -279,7 +327,7 @@ function showInfoPopup(scene, model) {
 }
 
 async function loadAssets() {
-  const [bgTexture, ...rawWalkFrames] = await Promise.all([Assets.load(BG_IMAGE), ...WALK_FRAMES.map((frame) => Assets.load(frame))]);
+  const [bgTexture, ...rawWalkFrames] = await Promise.all([loadBackgroundTexture(), ...WALK_FRAMES.map((frame) => Assets.load(frame))]);
   const walkFrames = rawWalkFrames.map((frame) => removeGreenScreenAndCrop(frame));
 
   return {
@@ -311,12 +359,14 @@ function resetBubble(bubble, width, height) {
 }
 
 function drawBackground(scene) {
-  const texWidth = scene.assets.bgTexture.width;
-  const texHeight = scene.assets.bgTexture.height;
+  const texture = toTexture(scene.assets.bgTexture) || toTexture(scene.bgSprite?.texture) || Texture.WHITE;
+  const texWidth = Math.max(1, Number(texture.width) || Number(texture.baseTexture?.realWidth) || 1);
+  const texHeight = Math.max(1, Number(texture.height) || Number(texture.baseTexture?.realHeight) || 1);
   const scale = scene.height / texHeight;
   const tileWidth = texWidth * scale;
   const offsetX = snap((scene.width - tileWidth) * 0.5);
 
+  scene.bgSprite.texture = texture;
   scene.bgSprite.width = scene.width;
   scene.bgSprite.height = scene.height;
   scene.bgSprite.tileScale.set(scale, scale);
