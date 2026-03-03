@@ -1,8 +1,13 @@
 const { AnimatedSprite, Application, Assets, Container, Graphics, Rectangle, Text, Texture, TilingSprite } = PIXI;
 
 const BG_IMAGE = "/game-assets/background/underwater-tileable.png";
-const WALK_STRIP = "/game-assets/lobster/spr_lobster_walk_strip6.png";
-const BASE_RED = 0xff3b30;
+const WALK_FRAMES = [
+  "/game-assets/lobster/crayfish_pixel_1.png",
+  "/game-assets/lobster/crayfish_pixel_2.png",
+  "/game-assets/lobster/crayfish_pixel_3.png",
+  "/game-assets/lobster/crayfish_pixel_4.png"
+];
+const BASE_RED = 0xffffff;
 const NAME_LABEL_STYLE = {
   fontFamily: "monospace",
   fontSize: 10,
@@ -62,6 +67,86 @@ function splitStrip(texture, frames, frameWidth, frameHeight) {
     result.push(new Texture(texture.baseTexture, new Rectangle(index * frameWidth, 0, frameWidth, frameHeight)));
   }
   return result;
+}
+
+function removeGreenScreenAndCrop(texture) {
+  const source = texture?.baseTexture?.resource?.source;
+  if (!source || typeof document === "undefined") {
+    return texture;
+  }
+
+  const frame = texture.frame ?? new Rectangle(0, 0, texture.width, texture.height);
+  const width = Math.max(1, Math.round(frame.width));
+  const height = Math.max(1, Math.round(frame.height));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return texture;
+  }
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, width, height);
+  ctx.drawImage(source, frame.x, frame.y, width, height, 0, 0, width, height);
+
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const pixels = imageData.data;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      const r = pixels[offset];
+      const g = pixels[offset + 1];
+      const b = pixels[offset + 2];
+
+      const isGreenScreen = g > 150 && g > r * 1.2 && g > b * 1.2;
+      if (isGreenScreen) {
+        pixels[offset + 3] = 0;
+        continue;
+      }
+
+      if (pixels[offset + 3] > 0) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+
+  if (maxX < minX || maxY < minY) {
+    return Texture.from(canvas);
+  }
+
+  const pad = 2;
+  minX = Math.max(0, minX - pad);
+  minY = Math.max(0, minY - pad);
+  maxX = Math.min(width - 1, maxX + pad);
+  maxY = Math.min(height - 1, maxY + pad);
+
+  const cropW = maxX - minX + 1;
+  const cropH = maxY - minY + 1;
+
+  const cropCanvas = document.createElement("canvas");
+  cropCanvas.width = cropW;
+  cropCanvas.height = cropH;
+  const cropCtx = cropCanvas.getContext("2d");
+  if (!cropCtx) {
+    return Texture.from(canvas);
+  }
+
+  cropCtx.imageSmoothingEnabled = false;
+  cropCtx.clearRect(0, 0, cropW, cropH);
+  cropCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+  return Texture.from(cropCanvas);
 }
 
 function formatModelLabel(model, limit = 18) {
@@ -194,14 +279,12 @@ function showInfoPopup(scene, model) {
 }
 
 async function loadAssets() {
-  const [bgTexture, walkTexture] = await Promise.all([
-    Assets.load(BG_IMAGE),
-    Assets.load(WALK_STRIP)
-  ]);
+  const [bgTexture, ...rawWalkFrames] = await Promise.all([Assets.load(BG_IMAGE), ...WALK_FRAMES.map((frame) => Assets.load(frame))]);
+  const walkFrames = rawWalkFrames.map((frame) => removeGreenScreenAndCrop(frame));
 
   return {
     bgTexture,
-    walkFrames: splitStrip(walkTexture, 6, 60, 29)
+    walkFrames
   };
 }
 
@@ -258,6 +341,9 @@ function createModelLobster(scene, model) {
   sprite.roundPixels = true;
   sprite.tint = BASE_RED;
   sprite.play();
+  const frameWidth = Number(scene.assets.walkFrames?.[0]?.width ?? 32);
+  const frameHeight = Number(scene.assets.walkFrames?.[0]?.height ?? 32);
+  const spriteUnitScale = 32 / Math.max(1, frameWidth, frameHeight);
 
   const emotionBadge = new Container();
   emotionBadge.position.set(0, -36);
@@ -296,6 +382,7 @@ function createModelLobster(scene, model) {
     model,
     container,
     sprite,
+    spriteUnitScale,
     emotionBadge,
     emotionBg,
     emotionText,
@@ -368,7 +455,8 @@ function syncModelLobsters(scene, lobsterState) {
     entity.direction = Math.cos(entity.heading) >= 0 ? 1 : -1;
 
     entity.sprite.tint = BASE_RED;
-    entity.sprite.scale.set(entity.direction > 0 ? targetScale : -targetScale, targetScale);
+    const displayScale = targetScale * entity.spriteUnitScale;
+    entity.sprite.scale.set(entity.direction > 0 ? displayScale : -displayScale, displayScale);
     entity.nameLabel.position.y = snap(14 + targetScale * 12);
     updateEmotionBadge(entity, lobster);
     entity.container.position.set(entity.x, entity.y);
@@ -523,7 +611,8 @@ function updateScene(scene, deltaTime) {
 
     entity.container.x = snap(entity.x);
     entity.container.y = snap(entity.y);
-    entity.sprite.scale.set(entity.direction > 0 ? entity.scale : -entity.scale, entity.scale);
+    const displayScale = entity.scale * entity.spriteUnitScale;
+    entity.sprite.scale.set(entity.direction > 0 ? displayScale : -displayScale, displayScale);
   }
 
   for (const bubble of scene.bubbles) {
