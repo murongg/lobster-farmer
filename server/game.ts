@@ -9,6 +9,7 @@ export interface ModelLobster {
   tokens: number;
   inputTokens: number;
   outputTokens: number;
+  emotion: string | null;
   size: number;
   updatedAt: string;
 }
@@ -51,6 +52,7 @@ interface LobsterRow {
   tokens: number;
   inputTokens: number;
   outputTokens: number;
+  emotion: string | null;
   size: number;
   updatedAt: string;
 }
@@ -156,6 +158,28 @@ function normalizeFeedTokens(
   };
 }
 
+function normalizeEmotionInput(input: unknown): string | null | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+
+  if (input === null) {
+    return null;
+  }
+
+  if (typeof input !== "string") {
+    throw new Error("emotion 必须是字符串");
+  }
+
+  const emotion = input
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[^\p{L}\p{N}_\-./ !?]/gu, "")
+    .slice(0, 24);
+
+  return emotion || null;
+}
+
 function calculateSize(tokens: number): number {
   const ratio = 1 - Math.exp(-GROWTH_K * Math.max(tokens, 0));
   return round(SIZE_MIN + (SIZE_MAX - SIZE_MIN) * ratio);
@@ -187,6 +211,7 @@ db.exec(`
     tokens INTEGER NOT NULL,
     input_tokens INTEGER NOT NULL DEFAULT 0,
     output_tokens INTEGER NOT NULL DEFAULT 0,
+    emotion TEXT,
     size REAL NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -207,6 +232,7 @@ ensureColumn("game_state", "total_input_tokens", "total_input_tokens INTEGER NOT
 ensureColumn("game_state", "total_output_tokens", "total_output_tokens INTEGER NOT NULL DEFAULT 0");
 ensureColumn("model_lobsters", "input_tokens", "input_tokens INTEGER NOT NULL DEFAULT 0");
 ensureColumn("model_lobsters", "output_tokens", "output_tokens INTEGER NOT NULL DEFAULT 0");
+ensureColumn("model_lobsters", "emotion", "emotion TEXT");
 
 db.exec(`
   UPDATE game_state
@@ -244,6 +270,7 @@ const selectAllLobstersStmt = db.prepare(`
     tokens,
     input_tokens AS inputTokens,
     output_tokens AS outputTokens,
+    emotion,
     size,
     updated_at AS updatedAt
   FROM model_lobsters
@@ -256,6 +283,7 @@ const selectLobsterByModelStmt = db.prepare(`
     tokens,
     input_tokens AS inputTokens,
     output_tokens AS outputTokens,
+    emotion,
     size,
     updated_at AS updatedAt
   FROM model_lobsters
@@ -263,13 +291,13 @@ const selectLobsterByModelStmt = db.prepare(`
 `);
 
 const insertLobsterStmt = db.prepare(`
-  INSERT INTO model_lobsters (model, feeds, tokens, input_tokens, output_tokens, size, updated_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO model_lobsters (model, feeds, tokens, input_tokens, output_tokens, emotion, size, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const updateLobsterStmt = db.prepare(`
   UPDATE model_lobsters
-  SET feeds = ?, tokens = ?, input_tokens = ?, output_tokens = ?, size = ?, updated_at = ?
+  SET feeds = ?, tokens = ?, input_tokens = ?, output_tokens = ?, emotion = ?, size = ?, updated_at = ?
   WHERE model = ?
 `);
 
@@ -294,6 +322,7 @@ function lobsterRowToModelLobster(row: LobsterRow): ModelLobster {
     tokens: row.tokens,
     inputTokens: row.inputTokens,
     outputTokens: row.outputTokens,
+    emotion: row.emotion,
     size: calculateSize(row.tokens),
     updatedAt: row.updatedAt
   };
@@ -326,7 +355,7 @@ function buildState(): LobsterState {
 }
 
 const feedTransaction = db.transaction(
-  (model: string, inputTokens: number, outputTokens: number, tokens: number): ModelLobster => {
+  (model: string, inputTokens: number, outputTokens: number, tokens: number, emotionInput?: string | null): ModelLobster => {
   const timestamp = nowIso();
   const current = selectLobsterByModelStmt.get(model) as LobsterRow | undefined;
 
@@ -334,6 +363,7 @@ const feedTransaction = db.transaction(
   let nextInputTokens = inputTokens;
   let nextOutputTokens = outputTokens;
   let nextTokens = tokens;
+  let nextEmotion: string | null = null;
   let createdModelCountDelta = 1;
 
   if (current) {
@@ -341,15 +371,20 @@ const feedTransaction = db.transaction(
     nextInputTokens = current.inputTokens + inputTokens;
     nextOutputTokens = current.outputTokens + outputTokens;
     nextTokens = current.tokens + tokens;
+    nextEmotion = current.emotion;
     createdModelCountDelta = 0;
+  }
+
+  if (emotionInput !== undefined) {
+    nextEmotion = emotionInput;
   }
 
   const nextSize = calculateSize(nextTokens);
 
   if (current) {
-    updateLobsterStmt.run(nextFeeds, nextTokens, nextInputTokens, nextOutputTokens, nextSize, timestamp, model);
+    updateLobsterStmt.run(nextFeeds, nextTokens, nextInputTokens, nextOutputTokens, nextEmotion, nextSize, timestamp, model);
   } else {
-    insertLobsterStmt.run(model, nextFeeds, nextTokens, nextInputTokens, nextOutputTokens, nextSize, timestamp);
+    insertLobsterStmt.run(model, nextFeeds, nextTokens, nextInputTokens, nextOutputTokens, nextEmotion, nextSize, timestamp);
   }
 
   updateGameStateStmt.run(tokens, inputTokens, outputTokens, createdModelCountDelta, model, timestamp, timestamp);
@@ -360,6 +395,7 @@ const feedTransaction = db.transaction(
     inputTokens: nextInputTokens,
     outputTokens: nextOutputTokens,
     tokens: nextTokens,
+    emotion: nextEmotion,
     size: nextSize,
     updatedAt: timestamp
   };
@@ -369,11 +405,13 @@ export function feedLobster(
   modelInput: string,
   inputTokensInput: unknown,
   outputTokensInput: unknown,
-  tokensFallbackInput?: unknown
+  tokensFallbackInput?: unknown,
+  emotionInput?: unknown
 ): FeedResult {
   const model = normalizeModel(modelInput);
   const feedTokens = normalizeFeedTokens(inputTokensInput, outputTokensInput, tokensFallbackInput);
-  const lobster = feedTransaction(model, feedTokens.inputTokens, feedTokens.outputTokens, feedTokens.tokens);
+  const normalizedEmotion = normalizeEmotionInput(emotionInput);
+  const lobster = feedTransaction(model, feedTokens.inputTokens, feedTokens.outputTokens, feedTokens.tokens, normalizedEmotion);
 
   return {
     state: getState(),

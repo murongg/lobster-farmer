@@ -44,9 +44,10 @@ app.post("/api/feed", (req: Request, res: Response) => {
   const inputTokens = body.input_tokens;
   const outputTokens = body.output_tokens;
   const tokens = body.tokens;
+  const emotion = body.emotion;
 
   try {
-    res.json(feedLobster(model, inputTokens, outputTokens, tokens));
+    res.json(feedLobster(model, inputTokens, outputTokens, tokens, emotion));
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
   }

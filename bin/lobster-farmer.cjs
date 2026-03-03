@@ -21,7 +21,7 @@ function printHelp() {
 Usage:
   lobster-farmer start [--port ${defaultPort}] [--foreground]
                                            Start game server (default: daemon)
-  lobster-farmer feed --model <name> [--input-tokens <n>] [--output-tokens <n>] [--port ${defaultPort}]
+  lobster-farmer feed --model <name> [--input-tokens <n>] [--output-tokens <n>] [--emotion <text>] [--port ${defaultPort}]
                                            Feed a model lobster through API
   lobster-farmer stop                       Stop daemon server
   lobster-farmer status                     Show daemon status
@@ -61,6 +61,7 @@ function parseArgs(argv) {
   let model;
   let inputTokens;
   let outputTokens;
+  let emotion;
 
   if (args.length > 0 && !args[0].startsWith("-")) {
     command = args.shift();
@@ -140,10 +141,25 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === "--emotion" || arg === "-e") {
+      const value = args[index + 1];
+      index += 1;
+      if (value === undefined) {
+        throw new Error("Missing value for --emotion");
+      }
+      emotion = String(value);
+      continue;
+    }
+
+    if (arg.startsWith("--emotion=")) {
+      emotion = String(arg.slice("--emotion=".length));
+      continue;
+    }
+
     throw new Error(`Unknown option: ${arg}`);
   }
 
-  return { command, port, foreground, model, inputTokens, outputTokens };
+  return { command, port, foreground, model, inputTokens, outputTokens, emotion };
 }
 
 function removeIfExists(path) {
@@ -414,6 +430,15 @@ async function feedThroughApi(parsed) {
 
   const port = resolvePort(parsed.port);
   const url = `http://127.0.0.1:${port}/api/feed`;
+  const emotion = typeof parsed.emotion === "string" ? parsed.emotion.trim() : undefined;
+  const body = {
+    model,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens
+  };
+  if (parsed.emotion !== undefined) {
+    body.emotion = emotion;
+  }
 
   let response;
   try {
@@ -422,11 +447,7 @@ async function feedThroughApi(parsed) {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        model,
-        input_tokens: inputTokens,
-        output_tokens: outputTokens
-      })
+      body: JSON.stringify(body)
     });
   } catch (error) {
     throw new Error(`feed request failed: ${error.message || String(error)}`);
@@ -448,9 +469,11 @@ async function feedThroughApi(parsed) {
   const size = lobster && typeof lobster.size === "number" ? lobster.size : "n/a";
   const feeds = lobster && typeof lobster.feeds === "number" ? lobster.feeds : "n/a";
   const totalTokens = lobster && typeof lobster.tokens === "number" ? lobster.tokens : "n/a";
+  const currentEmotion = lobster && typeof lobster.emotion === "string" && lobster.emotion.trim() ? lobster.emotion.trim() : "?";
 
   console.log(`Fed lobster: ${model}`);
   console.log(`input_tokens: ${inputTokens}, output_tokens: ${outputTokens}`);
+  console.log(`emotion: ${currentEmotion}`);
   console.log(`lobster tokens: ${totalTokens}, feeds: ${feeds}, size: ${size}`);
 }
 

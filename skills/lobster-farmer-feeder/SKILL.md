@@ -1,6 +1,6 @@
 ---
 name: lobster-farmer-feeder
-description: Feed lobsters in the Lobster Farmer game by calling the local CLI command `lobster-farmer feed` with `--model`, `--input-tokens`, and `--output-tokens`. Use this skill when the user asks to feed a lobster, simulate model usage, batch-feed multiple models, or update growth state from token consumption through the running local service.
+description: Feed lobsters in the Lobster Farmer game by calling the local CLI command `lobster-farmer feed` with `--model`, `--input-tokens`, `--output-tokens`, and optional `--emotion`. Use this skill when the user asks to feed a lobster, simulate model usage, batch-feed multiple models, or update growth state and emotion through the running local service.
 ---
 
 # Lobster Farmer Feeder
@@ -27,21 +27,22 @@ lobster-farmer start
 3. Execute feed command.
 - Single feed:
 ```bash
-lobster-farmer feed --model "<model>" --input-tokens <n> --output-tokens <m> [--port <p>]
+lobster-farmer feed --model "<model>" --input-tokens <n> --output-tokens <m> [--emotion "<text>"] [--port <p>]
 ```
 - Short flags:
 ```bash
-lobster-farmer feed -m "<model>" -i <n> -o <m> -p <p>
+lobster-farmer feed -m "<model>" -i <n> -o <m> [-e "<text>"] -p <p>
 ```
 
 4. Return result to user.
-- Include model name, input/output token values, lobster total tokens, feed count, and size.
+- Include model name, input/output token values, emotion, lobster total tokens, feed count, and size.
 - If requested, run multiple feed commands sequentially and summarize each result.
 
 ## Parameter Rules
 
 - Require `model` as non-empty string.
 - Require `input_tokens + output_tokens > 0`.
+- `emotion` is optional; if omitted, UI should show `?`.
 - Keep token values as integers and non-negative.
 - If user gives only a single total token value, default to:
 `input_tokens = total`, `output_tokens = 0`, unless user specifies another split.
@@ -60,6 +61,11 @@ lobster-farmer feed -m "<model>" -i <n> -o <m> -p <p>
 - Feed one lobster:
 ```bash
 lobster-farmer feed --model gpt-4.1 --input-tokens 800 --output-tokens 400
+```
+
+- Feed with emotion:
+```bash
+lobster-farmer feed --model gpt-4.1 --input-tokens 800 --output-tokens 400 --emotion "focused"
 ```
 
 - Feed different models:

@@ -2,8 +2,6 @@ const { AnimatedSprite, Application, Assets, Container, Graphics, Rectangle, Tex
 
 const BG_IMAGE = "/game-assets/background/underwater-tileable.png";
 const WALK_STRIP = "/game-assets/lobster/spr_lobster_walk_strip6.png";
-const BUBBLE_STRIP = "/game-assets/lobster/spr_lobster_searching_bubble_strip10.png";
-
 const BASE_RED = 0xff3b30;
 const NAME_LABEL_STYLE = {
   fontFamily: "monospace",
@@ -20,6 +18,14 @@ const POPUP_TEXT_STYLE = {
   fill: 0xe9f8ff,
   lineHeight: 14,
   stroke: 0x041d2f,
+  strokeThickness: 3
+};
+const EMOTION_TEXT_STYLE = {
+  fontFamily: "monospace",
+  fontSize: 9,
+  fontWeight: "700",
+  fill: 0xebf8ff,
+  stroke: 0x06253a,
   strokeThickness: 3
 };
 
@@ -77,10 +83,40 @@ function formatNumber(value) {
 function buildPopupText(model, lobster) {
   return [
     `Model: ${formatModelLabel(model, 24)}`,
+    `Emotion: ${lobster?.emotion ? formatModelLabel(lobster.emotion, 24) : "?"}`,
     `Total: ${formatNumber(lobster?.tokens)}`,
     `Input: ${formatNumber(lobster?.inputTokens)}`,
     `Output: ${formatNumber(lobster?.outputTokens)}`
   ].join("\n");
+}
+
+function getEmotionMeta(lobster) {
+  const rawEmotion = typeof lobster?.emotion === "string" ? lobster.emotion.trim() : "";
+  if (!rawEmotion) {
+    return { text: "?", accent: 0x9eb4c2 };
+  }
+
+  return {
+    text: formatModelLabel(rawEmotion, 10),
+    accent: 0x57f2a7
+  };
+}
+
+function updateEmotionBadge(entity, lobster) {
+  const { text, accent } = getEmotionMeta(lobster);
+  entity.emotionText.text = text;
+
+  const width = snap(Math.max(20, entity.emotionText.width + 12));
+  const height = 14;
+
+  entity.emotionBg.clear();
+  entity.emotionBg.lineStyle(2, accent, 0.96);
+  entity.emotionBg.beginFill(0x062238, 0.88);
+  entity.emotionBg.drawRect(-width * 0.5, -height * 0.5, width, height);
+  entity.emotionBg.endFill();
+
+  entity.emotionText.position.set(0, 0);
+  entity.emotionBadge.position.y = snap(-24 - entity.scale * 10);
 }
 
 function createInfoPopup(scene) {
@@ -158,16 +194,14 @@ function showInfoPopup(scene, model) {
 }
 
 async function loadAssets() {
-  const [bgTexture, walkTexture, bubbleTexture] = await Promise.all([
+  const [bgTexture, walkTexture] = await Promise.all([
     Assets.load(BG_IMAGE),
-    Assets.load(WALK_STRIP),
-    Assets.load(BUBBLE_STRIP)
+    Assets.load(WALK_STRIP)
   ]);
 
   return {
     bgTexture,
-    walkFrames: splitStrip(walkTexture, 6, 60, 29),
-    bubbleFrames: splitStrip(bubbleTexture, 10, 16, 16)
+    walkFrames: splitStrip(walkTexture, 6, 60, 29)
   };
 }
 
@@ -225,14 +259,18 @@ function createModelLobster(scene, model) {
   sprite.tint = BASE_RED;
   sprite.play();
 
-  const bubble = new AnimatedSprite(scene.assets.bubbleFrames);
-  bubble.anchor.set(0.5, 0.5);
-  bubble.animationSpeed = 0.18;
-  bubble.scale.set(1.6, 1.6);
-  bubble.position.set(0, -24);
-  bubble.alpha = 0.5;
-  bubble.roundPixels = true;
-  bubble.play();
+  const emotionBadge = new Container();
+  emotionBadge.position.set(0, -36);
+  emotionBadge.roundPixels = true;
+
+  const emotionBg = new Graphics();
+  const emotionText = new Text("?", EMOTION_TEXT_STYLE);
+  emotionText.anchor.set(0.5, 0.5);
+  emotionText.roundPixels = true;
+  emotionText.position.set(0, 0);
+
+  emotionBadge.addChild(emotionBg);
+  emotionBadge.addChild(emotionText);
 
   const nameLabel = new Text(formatModelLabel(model), NAME_LABEL_STYLE);
   nameLabel.anchor.set(0.5, 0);
@@ -240,7 +278,7 @@ function createModelLobster(scene, model) {
   nameLabel.roundPixels = true;
 
   container.addChild(sprite);
-  container.addChild(bubble);
+  container.addChild(emotionBadge);
   container.addChild(nameLabel);
 
   container.eventMode = "static";
@@ -258,7 +296,9 @@ function createModelLobster(scene, model) {
     model,
     container,
     sprite,
-    bubble,
+    emotionBadge,
+    emotionBg,
+    emotionText,
     nameLabel,
     x: spawnX,
     y: spawnY,
@@ -330,6 +370,7 @@ function syncModelLobsters(scene, lobsterState) {
     entity.sprite.tint = BASE_RED;
     entity.sprite.scale.set(entity.direction > 0 ? targetScale : -targetScale, targetScale);
     entity.nameLabel.position.y = snap(14 + targetScale * 12);
+    updateEmotionBadge(entity, lobster);
     entity.container.position.set(entity.x, entity.y);
 
     entity.container.zIndex = lobster.tokens;
@@ -483,7 +524,6 @@ function updateScene(scene, deltaTime) {
     entity.container.x = snap(entity.x);
     entity.container.y = snap(entity.y);
     entity.sprite.scale.set(entity.direction > 0 ? entity.scale : -entity.scale, entity.scale);
-    entity.bubble.alpha = 0.42 + Math.sin(scene.elapsed * 0.07 + entity.phase) * 0.2;
   }
 
   for (const bubble of scene.bubbles) {
