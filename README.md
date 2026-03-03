@@ -4,7 +4,7 @@
 
 ## Screenshot
 
-![Lobster Farmer Gameplay](./screenshots/1.png)
+![Lobster Farmer Gameplay](https://github.com/murongg/lobster-farmer/blob/main/screenshots/1.png?raw=true)
 
 ## Use in OpenClaw
 
