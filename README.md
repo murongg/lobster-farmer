@@ -1,5 +1,11 @@
 # Lobster Farmer
 
+[中文文档 (Simplified Chinese)](./README.zh-CN.md)
+
+## Screenshot
+
+![Lobster Farmer Gameplay](./screenshots/1.png)
+
 ## Use in OpenClaw
 
 1. On the machine where OpenClaw is installed, run:

@@ -1,5 +1,11 @@
 # Lobster Farmer
 
+[English README](./README.md)
+
+## 游戏截图
+
+![Lobster Farmer 游戏画面](./screenshots/1.png)
+
 ## 在 OpenClaw 中使用
 
 1. 在安装 OpenClaw 的计算机上执行：
