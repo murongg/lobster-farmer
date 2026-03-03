@@ -46,14 +46,18 @@ npx clawhub@latest install lobster-farmer-feeder
 
 ## 游戏静态资源来源
 
-- 龙虾精灵
-  - `public/game-assets/lobster/spr_lobster_walk_strip6.png`
-  - `public/game-assets/lobster/spr_lobster_searching_bubble_strip10.png`
-  - 来源：OpenGameArt - A Lobster Sprite
-  - 链接：https://opengameart.org/content/a-lobster-sprite
-  - 许可：CC-BY 3.0 或 CC-BY-SA 3.0
+- 当前游戏使用的龙虾动画帧
+  - `public/game-assets/lobster/crayfish_pixel_1.png`
+  - `public/game-assets/lobster/crayfish_pixel_2.png`
+  - `public/game-assets/lobster/crayfish_pixel_3.png`
+  - `public/game-assets/lobster/crayfish_pixel_4.png`
+  - 来源：本地导入素材（`crayfish_pixel_*`）
 
-- 海底背景
+- 当前游戏使用的主海洋背景
+  - `public/game-assets/background/ocean_pixel_background.gif`
+  - 来源：本地导入素材（`ocean_pixel_background.gif`）
+
+- 海底背景（回退资源）
   - `public/game-assets/background/underwater-tileable.png`
   - 来源：OpenGameArt - Underwater Scene (loopable)
   - 链接：https://opengameart.org/content/underwater-scene-loopable

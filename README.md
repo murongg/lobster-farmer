@@ -53,18 +53,19 @@ Please feed the lobster: model=gpt-4.1, input_tokens=1200, output_tokens=300
 
 ## Game Asset Credits
 
-- Lobster sprites
-  - `public/game-assets/lobster/spr_lobster_walk_strip6.png`
-  - `public/game-assets/lobster/spr_lobster_searching_bubble_strip10.png`
-  - Source: OpenGameArt - A Lobster Sprite
-  - Link: https://opengameart.org/content/a-lobster-sprite
-  - License: CC-BY 3.0 or CC-BY-SA 3.0
+- Lobster animation frames currently used in game
+  - `public/game-assets/lobster/crayfish_pixel_1.png`
+  - `public/game-assets/lobster/crayfish_pixel_2.png`
+  - `public/game-assets/lobster/crayfish_pixel_3.png`
+  - `public/game-assets/lobster/crayfish_pixel_4.png`
+  - Source: local imported asset (`crayfish_pixel_*`)
 
-- Underwater background
+- Primary ocean background currently used in game
+  - `public/game-assets/background/ocean_pixel_background.gif`
+  - Source: local imported asset (`ocean_pixel_background.gif`)
+
+- Fallback underwater background
   - `public/game-assets/background/underwater-tileable.png`
   - Source: OpenGameArt - Underwater Scene (loopable)
   - Link: https://opengameart.org/content/underwater-scene-loopable
   - License: CC0
-
-- Repository license record
-  - `assets/packs/lobster-swim/docs/LICENSES.md`
